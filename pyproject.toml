@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vaulboros"
-version = "0.0.1"
+version = "0.0.2"
 authors = [
   { name="Danil Skichko", email="ayonglad@yandex.ru" },
 ]
@@ -17,7 +17,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "aiohttp==3.9.3"
+    "aiohttp==3.9.3",
+    "requests==2.31.0"
 ]
 
 [project.urls]
