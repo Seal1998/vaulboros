@@ -172,42 +172,74 @@ class Vault:
             raise Exception(f"Secret location {result.path} not found. {location_vault_response.api_response}")
         elif location_vault_response.api_response.status_code in (403,401):
             raise Exception(f"Permission denied getting secret {result.path}. {location_vault_response.api_response}")
-        else:
-            return result
+        
+        return result
 
-    def get_kv_location(self, location_obj:Union[str,KvLocation], not_found_ok=True) -> KvLocation:
+    def get_kv_location(self, location_obj:Union[str,KvLocation], not_found_ok=True, 
+                                load_location=False, load_location_recursive=False) -> KvLocation:
         if type(location_obj) is str:
             location_obj = KvLocation(location_obj)
 
         kv_api = self.__get_api_instance_for_kv_object(location_obj)
 
-        kv_location_response = kv_api.list_location(location_obj)
+        if location_obj.api_response is None:
+            kv_location_response = kv_api.list_location(location_obj)
+
+        if load_location is True:
+            for secret in location_obj.secrets:
+                self.get_kv_secret(secret, not_found_ok)
+
+            if load_location_recursive is True:
+                for location in location_obj.locations:
+                    self.get_kv_location(location, not_found_ok=not_found_ok, load_location=True, load_location_recursive=True)
 
         return self.__post_process_get_kv_location(kv_location_response, not_found_ok)
 
-    def get_kv_locations(self, location_paths: list[str], not_found_ok=True) -> list[KvLocation]:
+    def get_kv_locations(self, location_paths: list[str], not_found_ok=True,
+                                load_location=False, load_location_recursive=False) -> list[KvLocation]:
         locations: list[KvLocation] = []
 
         for location_path in location_paths:
-            locations.append(self.get_kv_location(location_path, not_found_ok))
+            locations.append(self.get_kv_location(location_path, not_found_ok, load_location, load_location_recursive))
 
         return locations
 
-    async def a_get_kv_location(self, location_obj:Union[str,KvLocation], not_found_ok=True) -> KvLocation:
+    async def a_get_kv_location(self, location_obj:Union[str,KvLocation], not_found_ok=True,
+                                load_location=False, load_location_recursive=False) -> KvLocation:
         if type(location_obj) is str:
             location_obj = KvLocation(location_obj)
 
         kv_api = self.__get_api_instance_for_kv_object(location_obj)
 
-        kv_location_response = await kv_api.a_list_location(location_obj)
+        if location_obj.api_response is None:
+            kv_location_response = await kv_api.a_list_location(location_obj)
+
+        if load_location is True:
+            load_location_tasks: list[asyncio.Task] = []
+
+            for secret in location_obj.secrets:
+                load_location_tasks.append(
+                    asyncio.create_task(self.a_get_kv_secret(secret, not_found_ok))
+                )
+
+            if load_location_recursive is True:
+                for location in location_obj.locations:
+                    load_location_tasks.append(
+                        asyncio.create_task(self.a_get_kv_location(location_obj=location, not_found_ok=not_found_ok,
+                                                                   load_location=True, load_location_recursive=True))
+                    )
+
+            if len(load_location_tasks) > 0:
+                await asyncio.wait(load_location_tasks)
 
         return self.__post_process_get_kv_location(kv_location_response, not_found_ok)
 
-    async def a_get_kv_locations(self, location_paths: list[str], not_found_ok=True) -> list[KvLocation]:
+    async def a_get_kv_locations(self, location_paths: list[str], not_found_ok=True,
+                                 load_location=True, load_location_recursive=True) -> list[KvLocation]:
         location_tasks: list[asyncio.Task] = []
 
         for location_path in location_paths:
-            location_tasks.append(asyncio.create_task(self.a_get_kv_location(location_path, not_found_ok)))
+            location_tasks.append(asyncio.create_task(self.a_get_kv_location(location_path, not_found_ok, load_location, load_location_recursive)))
 
         location_results: list[KvLocation] = await asyncio.gather(*location_tasks)
 

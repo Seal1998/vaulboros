@@ -142,6 +142,9 @@ class KvLocation: # контейнер для локейшена в kv secret en
     def __contains__(self, secret_obj:Union[str,KvSecret]):
         s_path = secret_obj if type(secret_obj) is str else secret_obj.path
         return s_path in list(map(lambda s: s.path, self.secrets))
+    
+    def __repr__(self) -> str:
+        return self.path
 
     def update_from_list_api_response(self, response: ApiResponse): # kv and kv2 совместимое API
         if response.status_code == 200:

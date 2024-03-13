@@ -43,7 +43,7 @@ class ApiResponse:
 
         return cls(
             url = response.url,
-            method = response.request.method,
+            method = response.request.method.lower(),
             headers = response.headers,
             status_code = response.status_code,
             content = content
@@ -56,8 +56,8 @@ class ApiResponse:
         headers = response.headers
         status_code = response.status
         content = await response.json()
-        url = response.url
-        method = response.method
+        url = str(response.url)
+        method = response.method.lower()
 
         return cls(
             url, method, headers, status_code, content
@@ -68,12 +68,16 @@ class Cache:
 
     def __init__(self):
         self.__cache = defaultdict(dict)
+        self.stats = dict(
+            number_of_queries = 0
+        )
 
     def add(self, response: ApiResponse):
         self.__cache[response.method][response.url] = response
 
     def get(self, request: ApiRequest) -> ApiResponse:
         if request.url in self.__cache[request.method].keys():
+            self.stats['number_of_queries'] += 1
             return self.__cache[request.method][request.url]
         
     def full(self):
@@ -85,6 +89,7 @@ class Cache:
 class BaseApiClient: # класс с общими методами для sync, async
 
     cache = Cache()
+    logger = None
 
     def __init__(self, common_headers: dict={}, cache_response: bool=True) -> None:
         self.common_headers = common_headers
@@ -92,11 +97,13 @@ class BaseApiClient: # класс с общими методами для sync, 
 
     @staticmethod
     def log_response(response: ApiResponse) -> None:
-        print(f"[ {datetime.datetime.now()} ] [{response.method}] <-- {response.url} - {response.status_code}")
+        if BaseApiClient.logger is not None:
+            print(f"[ {datetime.datetime.now()} ] [{response.method}] <-- {response.url} - {response.status_code}")
     
     @staticmethod
     def log_request(request: ApiRequest) -> None:
-        print(f"[ {datetime.datetime.now()} ] [{request.method}] --> {request.url} - H: {request.headers} D: {request.data}")
+        if BaseApiClient.logger is not None:
+            print(f"[ {datetime.datetime.now()} ] [{request.method}] --> {request.url} - H: {request.headers} D: {request.data}")
 
 class AsyncApiClient(BaseApiClient):
 
@@ -128,10 +135,10 @@ class AsyncApiClient(BaseApiClient):
                     
                     response = await ApiResponse.from_aiohttp_response(raw_response)
 
-        response.request = request
+            response.request = request
 
-        if self.cache_response:
-            self.cache.add(response)
+            if self.cache_response:
+                self.cache.add(response)
 
         self.log_response(response)
 
@@ -151,23 +158,33 @@ class AsyncApiClient(BaseApiClient):
 
 class SyncApiClient(BaseApiClient):
 
-    def __init__(self, common_headers={}):
-        self.common_headers = common_headers.copy()
+    def __init__(self, common_headers={}, cache_response: bool=True):
+        super().__init__(common_headers, cache_response)
 
     def _request(self, request: ApiRequest) -> ApiResponse:
+        response: ApiResponse = None
 
         self.log_request(request)
 
-        raw_response = requests.request(
-            method=request.method,
-            url=request.url,
-            data=request.data,
-            headers=request.headers
-        )
+        if self.cache_response:
+            if request in self.cache:
+                response = self.cache.get(request)
 
-        response = ApiResponse.from_requests_response(raw_response)
+        if response is None:
 
-        response.request = request
+            raw_response = requests.request(
+                method=request.method,
+                url=request.url,
+                data=request.data,
+                headers=request.headers
+            )
+
+            response = ApiResponse.from_requests_response(raw_response)
+
+            response.request = request
+
+            if self.cache_response:
+                self.cache.add(response)
 
         self.log_response(response)
 
