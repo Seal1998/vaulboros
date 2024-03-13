@@ -98,6 +98,9 @@ class KvLocation: # контейнер для локейшена в kv secret en
 
         self.status = dict()
 
+        #--conditions--
+        self.not_found = False
+
     @property
     def path(self):
         return self.__path

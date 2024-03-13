@@ -168,8 +168,11 @@ class Vault:
 
         if location_vault_response.api_response.status_code == 200:
             return result
-        elif location_vault_response.api_response.status_code == 404 and not_found_ok is not True:
-            raise Exception(f"Secret location {result.path} not found. {location_vault_response.api_response}")
+        elif location_vault_response.api_response.status_code == 404:
+            if not_found_ok is not True:
+                raise Exception(f"Secret location {result.path} not found. {location_vault_response.api_response}")
+            else:
+                result.not_found = True
         elif location_vault_response.api_response.status_code in (403,401):
             raise Exception(f"Permission denied getting secret {result.path}. {location_vault_response.api_response}")
         
