@@ -54,6 +54,8 @@ class MountApi(BaseApi):
                     if mount.type == 'kv':
                         if mount.options['version'] == "2":
                             mount.init_api_object(Kv2Api, derive_from_api_object, vault_kv_engine_path=mount.path)
+                        elif mount.options['version'] == "1":
+                            mount.init_api_object(KvApi, derive_from_api_object, vault_kv_engine_path=mount.path)
 
                 mounts.append(mount)
             return mounts
